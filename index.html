@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+
+  <title>United States Educational Attainment</title>
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>-->
+
+  <link href="css/bootstrap.min.css" rel="stylesheet" type="text/css">
+  <style>
+    #tooltip {
+      position: absolute;
+      text-align: center;
+      font-size: 12px;
+      background: lightsteelblue;
+      padding: 5px 10px;
+      box-shadow: 1px 1px 10px;
+      border-radius: 5px;
+      pointer-events: none;
+    }
+  </style>
+
+  <script src="js/bootstrap.bundle.min.js" type="text/javascript"></script>
+  <script src="js/d3.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <ul class="nav nav-pills nav-dataset justify-content-center mt-5 mb-5"></ul>
+  <h1 id="title" class="mt-5 mb-2 text-center"></h1>
+  <h5 id="description" class="fw-normal mb-5 text-center"></h5>
+
+  <div class="legend-outer-wrapper text-center">
+    <div class="legend-inner-wrapper d-inline-block"></div>
+  </div>
+
+  <div class="svg-outer-wrapper position-relative overflow-x-auto overflow-y-hidden mb-5">
+    <div class="svg-inner-wrapper ms-auto me-auto"></div>
+  </div>
+</div>
+
+<script>
+  var svgWidth = 800;
+  var svgHeight = 600;
+  var groupPadding = 1;
+
+  var tooltipWidth = 120;
+  var tooltipMinHeight = 50;
+
+  var legendWidth = 480;
+  var legendColWidth = 160;
+  var numLegendCols = Math.floor(legendWidth / legendColWidth);
+  var legendSquareSize = 16;
+  var legendSpacingX = 5;
+  var legendSpacingY = 10;
+  var legendTextX = legendSquareSize + legendSpacingX;
+  var legendTextY = 13;
+
+  var colors = [
+    // reference: https://color.adobe.com/Patel-Color-Palette-color-theme-7982161/
+    {
+      background: '#1B85B8',
+      text: '#000',
+    },
+    {
+      background: '#5A5255',
+      text: '#fff',
+    },
+    {
+      background: '#559E83',
+      text: '#000',
+    },
+    {
+      background: '#AE5A41',
+      text: '#fff',
+    },
+    {
+      background: '#C3CB71',
+      text: '#000',
+    },
+    // reference: https://color.adobe.com/Patel-color-theme-color-theme-15259873/
+    {
+      background: '#F2C2EF',
+      text: '#000',
+    },
+    {
+      background: '#EEDCF2',
+      text: '#000',
+    },
+    {
+      background: '#9F88F2',
+      text: '#000',
+    },
+    {
+      background: '#D3F2CE',
+      text: '#000',
+    },
+    {
+      background: '#ECAED1',
+      text: '#000',
+    },
+    // reference: https://color.adobe.com/Pastel-Childrens-book-color-theme-7863821/
+    {
+      background: '#AE247C',
+      text: '#fff',
+    },
+    {
+      background: '#FFEE87',
+      text: '#000',
+    },
+    {
+      background: '#FF61C5',
+      text: '#000',
+    },
+    {
+      background: '#39C4CC',
+      text: '#000',
+    },
+    {
+      background: '#0DAAB2',
+      text: '#000',
+    },
+    // reference: https://color.adobe.com/patel-color-theme-17678585/
+    {
+      background: '#F5E08E',
+      text: '#000',
+    },
+    {
+      background: '#FCC397',
+      text: '#000',
+    },
+    {
+      background: '#E6959F',
+      text: '#000',
+    },
+    {
+      background: '#E1B0FF',
+      text: '#000',
+    },
+    {
+      background: '#BAC7F3',
+      text: '#000',
+    },
+    // reference: https://color.adobe.com/Patel-Color-Palette-color-theme-7982161/
+    {
+      background: '#1B85B8',
+      text: '#000',
+    },
+    {
+      background: '#5A5255',
+      text: '#fff',
+    },
+    {
+      background: '#559E83',
+      text: '#000',
+    },
+    {
+      background: '#AE5A41',
+      text: '#fff',
+    },
+    {
+      background: '#C3CB71',
+      text: '#000',
+    },
+  ];
+  var bkgColors = colors.map(function(color) {
+    return color.background;
+  });
+  var textColors = colors.map(function(color) {
+    return color.text;
+  });
+
+  var DATASETS = {
+    kickstarter: {
+      TITLE: 'Kickstarter Pledges',
+      DESCRIPTION:
+        'Top 100 Most Pledged Kickstarter Campaigns Grouped By Category',
+      DATA_URL:
+        'https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/kickstarter-funding-data.json'
+    },
+    movie: {
+      TITLE: 'Movie Sales',
+      DESCRIPTION: 'Top 100 Highest Grossing Movies Grouped By Genre',
+      DATA_URL:
+        'https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/movie-data.json'
+    },
+    video_game: {
+      TITLE: 'Video Game Sales',
+      DESCRIPTION: 'Top 100 Most Sold Video Games Grouped by Platform',
+      DATA_URL:
+        'https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/video-game-sales-data.json'
+    },
+  };
+
+  // url param
+  function getQueryParams(param) {
+    var query = window.location.search.substring(1);
+    var vars = query.split('&');
+    for (var i = 0; i < vars.length; i++) {
+      var pair = vars[i].split('=');
+      if (pair[0] === param) {
+        return pair[1];
+      }
+    }
+
+    return '';
+  }
+
+  var datasetType = getQueryParams('data') || 'kickstarter';
+  var DATASET = DATASETS[datasetType] || DATASETS['kickstarter'];
+
+  var htmlNavDataset = '';
+
+  for (var key in DATASETS) {
+    htmlNavDataset += '<li class="nav-item">' +
+      '<a class="nav-link ' + (key === datasetType ? 'active' : '') + '" href="?data=' + key + '">' +
+      DATASETS[key].TITLE +
+      '</a>' +
+      '</li>';
+  }
+
+  document.querySelector('.nav-dataset').innerHTML = htmlNavDataset;
+  document.title = DATASET.TITLE;
+  document.getElementById('title').innerHTML = DATASET.TITLE;
+  document.getElementById('description').innerHTML = DATASET.DESCRIPTION;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    d3.json(DATASET.DATA_URL)
+      .then(function(data) {
+        var treemap = d3
+          .treemap()
+          .size([svgWidth, svgHeight])
+          .padding(groupPadding);
+
+        // Before you can compute a hierarchical layout, you need a root node.
+        // If your data is already in a hierarchical format, such as JSON,
+        // you can pass it directly to hierarchy
+        var root = d3
+          .hierarchy(data)
+          // Compute the numeric value for each entity
+          .sum(function(d) { return d.value; })
+          .sort(function(a, b) { return b.height - a.height || b.value - a.value; });
+
+        // Then d3.treemap computes the position of each element of the hierarchy
+        // The coordinates are added to the root object above
+        treemap(root);
+
+        /**
+         * Categories
+         */
+        var categories = root.leaves().map(function (d) {
+          return d.data.category;
+        });
+        categories = categories.filter(function (category, index, self) {
+          return self.indexOf(category) === index;
+        });
+
+        /**
+         * Colours
+         */
+        var bkgColorScale = d3
+          .scaleOrdinal()
+          .domain(categories)
+          .range(bkgColors);
+
+        var textColorScale = d3
+          .scaleOrdinal()
+          .domain(categories)
+          .range(textColors);
+
+        /**
+         * Tooltip
+         */
+        var tooltip = d3
+          .select('.svg-inner-wrapper')
+          .style('width', svgWidth + 'px')
+          .append('div')
+          .attr('id', 'tooltip')
+          .style('width', tooltipWidth + 'px')
+          .style('min-height', tooltipMinHeight + 'px')
+          .style('opacity', 0);
+
+        /**
+         * main svg
+         */
+        var svg = d3
+          .select('.svg-inner-wrapper')
+          .append('svg')
+          .attr('width', svgWidth)
+          .attr('height', svgHeight);
+
+        /**
+         * Legend
+         */
+        var numLegendRows = Math.ceil(categories.length / numLegendCols);
+        var legendHeight = numLegendRows * (legendSquareSize + legendSpacingY) + legendSpacingY;
+
+        var legendWrapper = d3
+          .select('.legend-inner-wrapper')
+          .append('svg')
+          .attr('width', legendWidth)
+          .attr('height', legendHeight);
+
+        var legend = legendWrapper
+          .append('g')
+          .attr('id', 'legend')
+          .selectAll('g')
+          .data(categories)
+          .enter()
+          .append('g')
+          .attr('transform', function (d, i) {
+            return (
+              'translate(' +
+              (i % numLegendCols) * legendColWidth +
+              ',' +
+              (Math.floor(i / numLegendCols) * legendSquareSize +
+                Math.floor(i / numLegendCols) * legendSpacingY) +
+              ')'
+            );
+          });
+
+        legend
+          .append('rect')
+          .attr('class', 'legend-item')
+          .attr('width', legendSquareSize)
+          .attr('height', legendSquareSize)
+          .attr('fill', function (d) {
+            return bkgColorScale(d);
+          });
+
+        legend
+          .append('text')
+          .attr('x', legendTextX)
+          .attr('y', legendTextY)
+          .text(function (d) {
+            return d;
+          });
+
+        /**
+         * Group
+         */
+        var group = svg
+          .selectAll('svg')
+          .data(root.leaves())
+          .enter()
+          .append('svg')
+          .attr('class', 'group')
+          .attr('width', function (d) {
+            return d.x1 - d.x0;
+          })
+          .attr('height', function (d) {
+            return d.y1 - d.y0;
+          })
+          .attr('x', function (d) {
+            return d.x0;
+          })
+          .attr('y', function (d) {
+            return d.y0;
+          });
+
+        /**
+         * Rect in group
+         */
+        group
+          .append('rect')
+          .attr('class', 'tile')
+          .attr('data-name', function (d) {
+            return d.data.name;
+          })
+          .attr('data-category', function (d) {
+            return d.data.category;
+          })
+          .attr('data-value', function (d) {
+            return d.data.value;
+          })
+          .attr('width', function (d) {
+            return d.x1 - d.x0;
+          })
+          .attr('height', function (d) {
+            return d.y1 - d.y0;
+          })
+          .attr('fill', function (d) {
+            return bkgColorScale(d.data.category);
+          })
+          .on('mouseenter', function(event, d) {
+            var $outerWrapper = document.querySelector('.svg-outer-wrapper');
+            var $innerWrapper = document.querySelector('.svg-inner-wrapper');
+
+            tooltip.style('background', textColorScale(d.data.category));
+            tooltip.style('color', bkgColorScale(d.data.category));
+
+            /**
+             * Modify x
+             */
+            var outerWrapperWidth = $outerWrapper.offsetWidth;
+            var innerWrapperWidth = $innerWrapper.offsetWidth;
+            var xGap = outerWrapperWidth > innerWrapperWidth ? (outerWrapperWidth - innerWrapperWidth) / 2 : 0;
+            var x = d.x0 + xGap;
+            if (x + tooltipWidth + 10 > outerWrapperWidth) {
+              x = x - tooltipWidth - 10;
+            } else {
+              x = x + 10;
+            }
+
+            tooltip.html('Name: ' +
+              d.data.name +
+              '<br>Category: ' +
+              d.data.category +
+              '<br>Value: ' +
+              d.data.value
+            );
+
+            /**
+             * Modify y
+             */
+            var outerWrapperHeight = $outerWrapper.offsetHeight;
+            var tooltipHeight = document.getElementById('tooltip').offsetHeight;
+            var y = d.y0;
+            if (y + tooltipHeight + 20 > outerWrapperHeight) {
+              y = (outerWrapperHeight - tooltipHeight - 20);
+            } else {
+              y = y + 20;
+            }
+
+            tooltip
+              .attr('data-value', d.data.value)
+              .style('left', x + 'px')
+              .style('top', y + 'px');
+            tooltip.transition().duration(200).style('opacity', 0.9);
+          })
+          .on('mouseleave', function(event, d) {
+            tooltip.transition().duration(200).style('opacity', 0);
+          });
+
+        /**
+         * Text in group
+         */
+        group
+          .append('text')
+          .attr('class', 'tile-text')
+          .attr('fill', function(d) {
+            return textColorScale(d.data.category);
+          })
+          .style('pointer-events', 'none')
+          .text(function (d) {
+            return d.data.name;
+          })
+          .each(function(d) {
+            var width = d.x1 - d.x0;
+            var height = d.y1 - d.y0;
+            var paddingX = 5;
+            var paddingY = 20;
+            var lineHeight = 21; // Adjust line height as needed
+            var innerWidth = width - 2 * paddingX;
+            var innerHeight = height - 2 * paddingY;
+
+            var self = d3.select(this);
+            var textWidth = self.node().getComputedTextLength();
+            var text = self.node().textContent;
+            var words = text.split(' ');
+            var line = '';
+            var lines = [];
+            var lineCount = 0;
+            var hasMoreLines = false;
+
+            // Iterate through words and build lines
+            for (var i = 0; i < words.length; i++) {
+              var testLine = line + words[i] + ' ';
+
+              if (textWidth > innerWidth
+                && line.length > 0
+              ) {
+                lines.push(line.trim());
+                lineCount++;
+                line = words[i] + ' ';
+                if (lineCount * lineHeight > innerHeight) {
+                  hasMoreLines = true;
+                  break;
+                }
+              } else {
+                line = testLine;
+              }
+            }
+
+            // Add the last line
+            if (line.length > 0
+              && lineCount * lineHeight <= innerHeight
+            ) {
+              lines.push(line.trim());
+              lineCount++;
+            }
+
+            if (lineCount * lineHeight > innerHeight
+              && hasMoreLines
+            ) {
+              // Add ellipsis to the last visible line
+              var lastLine = lines[lines.length - 1];
+              lines[lines.length - 1] = lastLine + '...';
+            }
+
+            self.text('');
+
+            for(var i = 0; i < lines.length; i++) {
+              self
+                .append('tspan')
+                .attr('x', 5)
+                .attr('y', 20 + i * lineHeight)
+                .text(lines[i]);
+            }
+          });
+      });
+  });
+</script>
+</body>
+</html>
